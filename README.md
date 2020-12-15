@@ -11,7 +11,7 @@ git clone https://github.com/BigDataGrapes-EU/d5.3-gacovi.git
 Navigate to the cloned/downloaded folder:
 
 ```bash
-cd d5.3-ahmose
+cd d5.3-gacovi
 ```
 
 Build the image:
