@@ -1,0 +1,682 @@
+{
+  "$schema": "https://vega.github.io/schema/vega/v5.json",
+  "height": 300,
+  "padding": {
+    "left": 10,
+    "top": 0,
+    "right": 10,
+    "bottom": 10
+  },
+  "data": [
+    {
+      "name": "selected",
+      "on": [
+        {
+          "trigger": "clicked",
+          "toggle": "clicked"
+        }
+      ]
+    },
+    {
+      "name": "edges",
+      "transform": [
+        {
+          "type": "formula",
+          "as": "key",
+          "expr": "datum.from + '-' + datum.to"
+        }
+      ]
+    },
+    {
+      "name": "nodes",
+      "transform": [
+        {
+          "type": "window",
+          "sort": {
+            "field": "order",
+            "order": "ascending"
+          },
+          "ops": [
+            "lag"
+          ],
+          "fields": [
+            "id"
+          ],
+          "as": [
+            "prev_id"
+          ]
+        },
+        {
+          "type": "formula",
+          "as": "gapKey",
+          "expr": "datum.prev_id + '-' + datum.id"
+        },
+        {
+          "type": "lookup",
+          "from": "edges",
+          "key": "key",
+          "fields": [
+            "gapKey"
+          ],
+          "values": [
+            "weight"
+          ],
+          "as": [
+            "gap_corr"
+          ],
+          "default": 1
+        },
+        {
+          "type": "formula",
+          "as": "gap",
+          "expr": "1/(1+exp(14.722 * (abs(datum.gap_corr) - 0.5)))"
+        },
+        {
+          "type": "window",
+          "sort": {
+            "field": "order",
+            "order": "ascending"
+          },
+          "frame": [
+            null,
+            0
+          ],
+          "ops": [
+            "sum"
+          ],
+          "fields": [
+            "gap"
+          ],
+          "as": [
+            "sum_gap"
+          ]
+        },
+        {
+          "type": "formula",
+          "as": "coord",
+          "expr": "datum.order - 1 + datum.sum_gap"
+        },
+        {
+          "type": "extent",
+          "field": "order",
+          "signal": "order_extent"
+        },
+        {
+          "type": "extent",
+          "field": "coord",
+          "signal": "coord_extent"
+        }
+      ]
+    }
+  ],
+  "signals": [
+    {
+      "name": "primary_color",
+      "value": "#0f62fe"
+    },
+    {
+      "name": "h",
+      "update": "min(height, 25 * coord_extent[1])"
+    },
+    {
+      "name": "clicked",
+      "value": null,
+      "on": [
+        {
+          "events": "@rowLabels:click",
+          "update": "datum",
+          "force": true
+        }
+      ]
+    }
+  ],
+  "scales": [
+    {
+      "name": "to_px",
+      "type": "linear",
+      "domain": {
+        "data": "nodes",
+        "field": "coord"
+      },
+      "range": [
+        0,
+        {
+          "signal": "h"
+        }
+      ]
+    },
+    {
+      "name": "id_to_coord",
+      "type": "ordinal",
+      "domain": {
+        "data": "nodes",
+        "field": "id"
+      },
+      "range": {
+        "data": "nodes",
+        "field": "coord"
+      }
+    },
+    {
+      "name": "correlation_sign",
+      "type": "ordinal",
+      "domain": [
+        "negative",
+        "positive"
+      ],
+      "range": [
+        "#da1e28",
+        "#007d7a"
+      ]
+    },
+    {
+      "name": "id_to_short_name",
+      "type": "ordinal",
+      "domain": {
+        "data": "nodes",
+        "field": "id"
+      },
+      "range": {
+        "data": "nodes",
+        "field": "short_name"
+      }
+    }
+  ],
+  "layout": {
+    "padding": 20
+  },
+  "marks": [
+    {
+      "name": "group_nodes",
+      "type": "group",
+      "legends": [
+        {
+          "fill": "correlation_sign",
+          "orient": "top",
+          "offset": 8,
+          "direction": "horizontal",
+          "title": "Correlation Direction",
+          "titleOrient": "top",
+          "symbolType": "square",
+          "symbolSize": 144
+        }
+      ],
+      "layout": {
+        "padding": 20
+      },
+      "marks": [
+        {
+          "name": "mark_nodes_attributes",
+          "type": "group",
+          "marks": [
+            {
+              "name": "nodes_attributes_rows",
+              "type": "group",
+              "from": {
+                "facet": {
+                  "name": "correlations",
+                  "data": "nodes",
+                  "field": "correlations"
+                }
+              },
+              "encode": {
+                "update": {
+                  "y": {
+                    "scale": "to_px",
+                    "field": "coord"
+                  }
+                }
+              },
+              "signals": [
+                {
+                  "name": "col_width",
+                  "update": "bandwidth('position')"
+                },
+                {
+                  "name": "row_height",
+                  "update": "scale('to_px', 1)"
+                },
+                {
+                  "name": "node",
+                  "update": "parent"
+                },
+                {
+                  "name": "is_last",
+                  "update": "parent.order == order_extent[1] ? 1 : 0"
+                },
+                {
+                  "name": "is_first",
+                  "update": "parent.order == order_extent[0] ? 1 : 0"
+                }
+              ],
+              "scales": [
+                {
+                  "name": "position",
+                  "type": "band",
+                  "paddingInner": 0.1,
+                  "domain": {
+                    "data": "correlations",
+                    "field": "target"
+                  },
+                  "range": {
+                    "step": {
+                      "signal": "scale('to_px', 5)"
+                    }
+                  }
+                }
+              ],
+              "marks": [
+                {
+                  "name": "node_attributes",
+                  "type": "group",
+                  "from": {
+                    "data": "correlations"
+                  },
+                  "encode": {
+                    "update": {
+                      "y": {
+                        "value": 0
+                      },
+                      "x": {
+                        "scale": "position",
+                        "field": "target"
+                      },
+                      "width": {
+                        "signal": "col_width"
+                      },
+                      "height": {
+                        "signal": "row_height"
+                      },
+                      "stroke": {
+                        "value": "#ddd"
+                      }
+                    }
+                  },
+                  "scales": [
+                    {
+                      "name": "correlation",
+                      "range": {
+                        "signal": "[0 ,col_width]"
+                      },
+                      "domain": [
+                        0,
+                        1
+                      ]
+                    }
+                  ],
+                  "axes": [
+                    {
+                      "title": "",
+                      "orient": "bottom",
+                      "scale": "correlation",
+                      "values": [
+                        0.2,
+                        0.5,
+                        0.8
+                      ],
+                      "titleLimit": {
+                        "signal": "col_width"
+                      },
+                      "labelColor": "#aaa",
+                      "tickColor": "#ddd",
+                      "domainColor": "#ddd",
+                      "encode": {
+                        "grid": {
+                          "update": {
+                            "y2": {
+                              "value": 0
+                            },
+                            "y": {
+                              "signal": "-row_height"
+                            }
+                          }
+                        },
+                        "ticks": {
+                          "update": {
+                            "opacity": {
+                              "signal": "is_last"
+                            }
+                          }
+                        },
+                        "labels": {
+                          "update": {
+                            "opacity": {
+                              "signal": "is_last"
+                            }
+                          }
+                        },
+                        "domain": {
+                          "update": {
+                            "opacity": {
+                              "signal": "is_last"
+                            }
+                          }
+                        },
+                        "title": {
+                          "interactive": true,
+                          "update": {
+                            "opacity": {
+                              "signal": "is_last"
+                            },
+                            "text": {
+                              "signal": "parent.short_name"
+                            },
+                            "fontSize": [
+                              {
+                                "test": "is_last",
+                                "value": 12
+                              },
+                              {
+                                "value": 0
+                              }
+                            ],
+                            "tooltip": {
+                              "signal": "parent.long_name + ': ' + parent.description"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "title": "",
+                      "orient": "top",
+                      "scale": "correlation",
+                      "values": [
+                        0.2,
+                        0.5,
+                        0.8
+                      ],
+                      "grid": true,
+                      "gridDash": [
+                        3,
+                        3
+                      ],
+                      "gridDashOffset": 1.5,
+                      "titleLimit": {
+                        "signal": "col_width"
+                      },
+                      "labelColor": "#aaa",
+                      "tickColor": "#ddd",
+                      "domainColor": "#ddd",
+                      "encode": {
+                        "grid": {
+                          "update": {
+                            "y2": {
+                              "value": 0
+                            },
+                            "y": {
+                              "signal": "row_height"
+                            }
+                          }
+                        },
+                        "ticks": {
+                          "update": {
+                            "opacity": {
+                              "signal": "is_first"
+                            }
+                          }
+                        },
+                        "labels": {
+                          "update": {
+                            "opacity": {
+                              "signal": "is_first"
+                            }
+                          }
+                        },
+                        "domain": {
+                          "update": {
+                            "opacity": {
+                              "signal": "is_first"
+                            }
+                          }
+                        },
+                        "title": {
+                          "interactive": true,
+                          "update": {
+                            "opacity": {
+                              "signal": "is_first"
+                            },
+                            "text": {
+                              "signal": "parent.short_name"
+                            },
+                            "fontSize": [
+                              {
+                                "test": "is_first",
+                                "value": 12
+                              },
+                              {
+                                "value": 0
+                              }
+                            ],
+                            "tooltip": {
+                              "signal": "parent.long_name + ': ' + parent.description"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "marks": [
+                    {
+                      "type": "rect",
+                      "encode": {
+                        "update": {
+                          "width": {
+                            "scale": "correlation",
+                            "signal": "abs(parent.correlation)"
+                          },
+                          "height": {
+                            "signal": "row_height"
+                          },
+                          "fill": {
+                            "scale": "correlation_sign",
+                            "signal": "parent.correlation > 0 ? 'positive' : 'negative'"
+                          },
+                          "tooltip": {
+                            "signal": "{'Correlation': format(parent.correlation, '+.2f') + ' (' + parent.short_name + ' - ' + node.short_name + ')'}"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "row_labels",
+          "type": "group",
+          "marks": [
+            {
+              "type": "text",
+              "name": "rowLabels",
+              "from": {
+                "data": "nodes"
+              },
+              "encode": {
+                "update": {
+                  "y": {
+                    "scale": "to_px",
+                    "field": "coord"
+                  },
+                  "dy": {
+                    "scale": "to_px",
+                    "value": 0.5
+                  },
+                  "limit": {
+                    "signal": "scale('to_px', 10)"
+                  },
+                  "text": {
+                    "field": "short_name"
+                  },
+                  "tooltip": {
+                    "signal": "datum.long_name + ': ' + datum.description"
+                  },
+                  "fontSize": {
+                    "signal": "0.7 * scale('to_px', 1)"
+                  },
+                  "align": {
+                    "value": "center"
+                  },
+                  "baseline": {
+                    "value": "middle"
+                  },
+                  "fill": [
+                    {
+                      "test": "indata('selected', 'id', datum.id)",
+                      "signal": "primary_color"
+                    },
+                    {
+                      "value": "black"
+                    }
+                  ],
+                  "cursor": {
+                    "value": "pointer"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "group_edges",
+      "type": "group",
+      "scales": [
+        {
+          "name": "correlation_strength",
+          "type": "linear",
+          "range": {
+            "scheme": "greys"
+          },
+          "domain": [
+            0,
+            1
+          ]
+        }
+      ],
+      "legends": [
+        {
+          "fill": "correlation_strength",
+          "orient": "none",
+          "legendY": {
+            "signal": "scale('to_px', coord_extent[1] + 1) + 5"
+          },
+          "legendX": {
+            "signal": "0"
+          },
+          "gradientLength": {
+            "signal": "scale('to_px', coord_extent[1] + 1)"
+          },
+          "direction": "horizontal",
+          "title": "Correlation Strength",
+          "titleOrient": "top"
+        }
+      ],
+      "marks": [
+        {
+          "type": "rect",
+          "from": {
+            "data": "edges"
+          },
+          "encode": {
+            "update": {
+              "x": {
+                "signal": "scale('to_px', scale('id_to_coord', datum.to))"
+              },
+              "y": {
+                "signal": "scale('to_px', scale('id_to_coord', datum.from))"
+              },
+              "width": {
+                "scale": "to_px",
+                "value": 1
+              },
+              "height": {
+                "scale": "to_px",
+                "value": 1
+              },
+              "fill": {
+                "signal": "scale('correlation_strength', abs(datum.weight))"
+              },
+              "tooltip": {
+                "signal": "{'Correlation': format(datum.weight, '+.2f') + ' (' + scale('id_to_short_name', datum.from) + ' - ' + scale('id_to_short_name', datum.to) + ')'}"
+              },
+              "strokeWidth": {
+                "value": 2.5
+              },
+              "stroke": {
+                "scale": "correlation_sign",
+                "signal": "datum.weight > 0 ? 'positive' : 'negative'"
+              },
+              "strokeOpacity": {
+                "signal": "MIN_VALUE"
+              },
+              "zindex": {
+                "value": 0
+              }
+            },
+            "hover": {
+              "strokeOpacity": {
+                "value": 1
+              },
+              "zindex": {
+                "value": 10
+              }
+            }
+          }
+        },
+        {
+          "type": "text",
+          "name": "columnLabels",
+          "from": {
+            "data": "nodes"
+          },
+          "encode": {
+            "update": {
+              "x": {
+                "scale": "to_px",
+                "field": "coord"
+              },
+              "dy": {
+                "scale": "to_px",
+                "value": 0.5
+              },
+              "y": {
+                "offset": -18
+              },
+              "width": {
+                "value": 100
+              },
+              "limit": {
+                "signal": "scale('to_px', 5)"
+              },
+              "text": {
+                "field": "short_name"
+              },
+              "tooltip": {
+                "signal": "datum.long_name + ': ' + datum.description"
+              },
+              "fontSize": {
+                "signal": "0.7 * scale('to_px', 1)"
+              },
+              "angle": {
+                "value": -45
+              },
+              "align": {
+                "value": "left"
+              },
+              "baseline": {
+                "value": "middle"
+              },
+              "fill": {
+                "value": "black"
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
